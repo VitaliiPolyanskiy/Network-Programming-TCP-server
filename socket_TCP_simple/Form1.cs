@@ -17,103 +17,102 @@ namespace socket_TCP_simple
         public Form1()
         {
             InitializeComponent();
-            // Получим контекст синхронизации для текущего потока 
+            // Отримаємо контекст синхронізації для поточного потоку 
             uiContext = SynchronizationContext.Current;
         }
 
         /*
-                                                
-        SOCKET – это некоторое логическое гнездо, которое позволяет двум приложениям обмениватся информацией 
-        по сети не задумываяся о месте расположения. SOCKET – это комбинация IP-address и номера порта.
+        SOCKET – це деяке логічне гніздо, яке дозволяє двом додаткам обмінюватися інформацією 
+        мережею, не замислюючись про місце розташування. SOCKET – це комбінація IP-address та номера порту.
         
-        Internet Protocol (IP) - широко используемый протокол как в локальных, так и в глобальных сетях.
-        Этот протокол не требует установления соединения и не гарантирует доставку данных. Поэтому для
-        передачи данных поверх IP используются два протокола более высокого уровня: TCP, UDP.
+        Internet Protocol (IP) - протокол, що широко використовується як у локальних, так і в глобальних мережах.
+        Цей протокол не потребує встановлення з'єднання і не гарантує доставку даних. Тому для
+        передачі даних поверх IP використовуються два протоколи вищого рівня: TCP, UDP.
         
-        Transmission Control Protocol (TCP) реализует связь с установлением соединения, обеспечивая 
-        безошибочную передачу данных между компьютерами. 
+        Transmission Control Protocol (TCP) реалізує зв'язок із встановленням з'єднання, забезпечуючи 
+        безпомилкову передачу даних між комп'ютерами. 
         
-        Связь без установления соединения выполняется при помощи User Datagram Protocol (UDP). Не гарантируя
-        надёжности, UDP может осуществлять передачу данных множеству адресатов и принимать данные от множества
-        источников. Например, данные, отправляемые клиентом на сервер, передаются немедленно, независимо от того,
-        готов ли сервер к приёму. При получении данных от клиента, сервер не подтверждает их приём. Данные 
-        передаются в виде дейтаграмм. И TCP, и UDP передают данные по IP, поэтому обычно говорят об использовании 
-        TCP/IP или UDP/IP.
+        Зв'язок без встановлення з'єднання виконується за допомогою User Datagram Protocol (UDP). Не гарантуючи
+        надійності, UDP може здійснювати передачу даних безлічі адресатів і приймати дані від безлічі
+        джерел. Наприклад, дані, що відправляються клієнтом на сервер, передаються негайно, незалежно від того,
+        чи готовий сервер до прийому. При отриманні даних від клієнта, сервер не підтверджує їхній прийом. Дані 
+        передаються у вигляді дейтаграм. І TCP, і UDP передають дані по IP, тому зазвичай говорять про використання 
+        TCP/IP або UDP/IP.
         */
 
-        // обслуживание очередного запроса будем выполнять в отдельном потоке
+        // Обслуговування чергового запиту виконуватимемо в окремому потоці
         private async void Receive(TcpClient tcpClient)
         {
-            await Task.Run(async() =>
+            await Task.Run(async () =>
             {
                 NetworkStream netstream = null;
                 try
                 {
-                    // Получим объект NetworkStream, используемый для приема и передачи данных.
+                    // Отримаємо об'єкт NetworkStream, що використовується для прийому та передачі даних.
                     netstream = tcpClient.GetStream();
                     string client = null;
-                    byte[] arr = new byte[tcpClient.ReceiveBufferSize /* размер приемного буфера */];
-                    // Читаем данные из объекта NetworkStream.
-                    int len = await netstream.ReadAsync(arr, 0, tcpClient.ReceiveBufferSize);// Возвращает фактически считанное число байтов
-                    client = Encoding.Default.GetString(arr, 0, len); // конвертируем массив байтов в строку
+                    byte[] arr = new byte[tcpClient.ReceiveBufferSize /* розмір прийомного буфера */];
+                    // Читаємо дані з об'єкта NetworkStream.
+                    int len = await netstream.ReadAsync(arr, 0, tcpClient.ReceiveBufferSize);// Повертає фактично зчитану кількість байтів
+                    client = Encoding.Default.GetString(arr, 0, len); // конвертуємо масив байтів у рядок
                     while (true)
                     {
-                        len = await netstream.ReadAsync(arr, 0, tcpClient.ReceiveBufferSize);// Возвращает фактически считанное число байтов
+                        len = await netstream.ReadAsync(arr, 0, tcpClient.ReceiveBufferSize);// Повертає фактично зчитану кількість байтів
                         if (len == 0)
                         {
                             netstream.Close();
-                            tcpClient.Close(); // закрываем TCP-подключение и освобождаем все ресурсы, связанные с объектом TcpClient.
+                            tcpClient.Close(); // закриваємо TCP-підключення та звільняємо всі ресурси, пов'язані з об'єктом TcpClient.
                             return;
                         }
-                        // Создадим поток, резервным хранилищем которого является память.
+                        // Створимо потік, резервним сховищем якого є пам'ять.
                         //byte[] copy = new byte[len];
                         //Array.Copy(arr, 0, copy, 0, len);
                         MemoryStream stream = new MemoryStream(arr, 0, len);
                         var jsonFormatter = new DataContractJsonSerializer(typeof(MessageTCP));
-                        MessageTCP m = jsonFormatter.ReadObject(stream) as MessageTCP;// выполняем десериализацию
+                        MessageTCP m = jsonFormatter.ReadObject(stream) as MessageTCP;// виконуємо десеріалізацію
 
-                        // полученную от клиента информацию добавляем в список
+                        // отриману від клієнта інформацію додаємо до списку
                         string Result = m.Host + " - " + m.User + " - " + m.Message;
-                        // uiContext.Send отправляет синхронное сообщение в контекст синхронизации
-                        // SendOrPostCallback - делегат указывает метод, вызываемый при отправке сообщения в контекст синхронизации. 
-                        uiContext.Send(d => listBox1.Items.Add(Result) /* Вызываемый делегат SendOrPostCallback */,
-                            null /* Объект, переданный делегату */); // добавляем в список имя клиента
+                        // uiContext.Send відправляє синхронне повідомлення в контекст синхронізації
+                        // SendOrPostCallback - делегат вказує метод, що викликається при відправці повідомлення в контекст синхронізації. 
+                        uiContext.Send(d => listBox1.Items.Add(Result) /* Викликаний делегат SendOrPostCallback */,
+                            null /* Об'єкт, переданий делегату */); // додаємо до списку ім'я клієнта
                         stream.Close();
-                        if (m.Message.IndexOf("<end>") > -1) // если клиент отправил эту команду, то заканчиваем обработку сообщений
+                        if (m.Message.IndexOf("<end>") > -1) // якщо клієнт відправив цю команду, то завершуємо обробку повідомлень
                             break;
                     }
-                    string theReply = "Я завершаю обработку сообщений";
-                    byte[] msg = Encoding.Default.GetBytes(theReply); // конвертируем строку в массив байтов
-                    await netstream.WriteAsync(msg, 0, msg.Length); // записываем данные в NetworkStream.
+                    string theReply = "Я завершую обробку повідомлень";
+                    byte[] msg = Encoding.Default.GetBytes(theReply); // конвертируем рядок у масив байтів
+                    await netstream.WriteAsync(msg, 0, msg.Length); // записуємо дані в NetworkStream.
                     netstream.Close();
-                    tcpClient.Close(); // закрываем TCP-подключение и освобождаем все ресурсы, связанные с объектом TcpClient.
+                    tcpClient.Close(); // закриваємо TCP-підключення та звільняємо всі ресурси, пов'язані з об'єктом TcpClient.
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show("Сервер: " + ex.Message);
                     netstream?.Close();
-                    tcpClient?.Close(); // закрываем TCP-подключение и освобождаем все ресурсы, связанные с объектом TcpClient.
+                    tcpClient?.Close(); // закриваємо TCP-підключення та звільняємо всі ресурси, пов'язані з об'єктом TcpClient.
                 }
             });
         }
 
-        //  ожидать запросы на соединение будем в отдельном потоке
+        // Очікувати запити на з'єднання будемо в окремому потоці
         private async void Accept()
         {
-            await Task.Run(async() =>
+            await Task.Run(async () =>
             {
                 try
                 {
-                    // TcpListener ожидает подключения от TCP-клиентов сети.
+                    // TcpListener очікує підключення від TCP-клієнтів мережі.
                     TcpListener listener = new TcpListener(
-                    IPAddress.Any /* Предоставляет IP-адрес, указывающий, что сервер должен контролировать действия клиентов на всех сетевых интерфейсах.*/,
+                    IPAddress.Any /* Надає IP-адресу, яка вказує, що сервер повинен контролювати дії клієнтів на всіх мережевих інтерфейсах.*/,
                     49152 /* порт */);
-                    listener.Start(); // Запускаем ожидание входящих запросов на подключение
+                    listener.Start(); // Запускаємо очікування вхідних запитів на підключення
                     while (true)
                     {
-                        // Принимаем ожидающий запрос на подключение 
-                        // Метод AcceptTcpClient — это блокирующий метод, возвращающий объект TcpClient, 
-                        // который может использоваться для приема и передачи данных.
+                        // Приймаємо запит на підключення, що очікує 
+                        // Метод AcceptTcpClient — це блокуючий метод, який повертає об'єкт TcpClient, 
+                        // що може використовуватися для прийому та передачі даних.
                         TcpClient client = await listener.AcceptTcpClientAsync();
                         Receive(client);
                     }
